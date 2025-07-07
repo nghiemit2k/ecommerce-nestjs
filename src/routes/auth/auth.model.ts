@@ -9,15 +9,15 @@ export const RegisterBodySchema = userSchema.pick({
     phoneNumber: true,
 }).extend({
     confirmPassword: z.string().min(6).max(100),
-    code: z.string().min(6).max(6),
+    code: z.string().min(6).max(6).optional().nullable(),
 }).strict().refine((data) => data.password === data.confirmPassword, {
     message: 'Password and confirm password do not match',
     path: ['confirmPassword']
 })
-    .refine((data) => data.code.length === 6, {
-        message: 'Code must be 6 digits',
-        path: ['code']
-    })
+// .refine((data) => data.code && data.code.length === 6, {
+//     message: 'Code must be 6 digits',
+//     path: ['code']
+// })
 
 export type RegisterBodyType = z.infer<typeof RegisterBodySchema>
 

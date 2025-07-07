@@ -2,30 +2,25 @@ import { BadRequestException, ConflictException, Injectable } from "@nestjs/comm
 import { RolesService } from "./roles.service";
 import { HashingService } from "src/shared/services/hashing.service";
 import { isUniqueConstraintPrismaError } from "src/shared/helpers";
-import { PrismaService } from "src/shared/services/prisma.service";
+import { RegisterBodyType } from "./auth.model";
+import { AuthRepoitory } from "./auth.repo";
 
 @Injectable()
 export class AuthService {
-    constructor(private readonly prisma: PrismaService, private readonly hashingService: HashingService,
+    constructor(private readonly authRepo: AuthRepoitory, private readonly hashingService: HashingService,
         private readonly rolesService: RolesService) { }
 
-    async register(body: any) {
+    async register(body: RegisterBodyType) {
         try {
             const clientRoleId = await this.rolesService.getClientRoleId()
             const hashedPassword = await this.hashingService.hash(body.password)
-            const user = await this.prisma.user.create({
-                data: {
-                    email: body.email,
-                    password: hashedPassword,
-                    roleId: clientRoleId,
-                    name: body.name,
-                    phoneNumber: body.phoneNumber
-                },
-                omit: {
-                    totpSecret: true
-                }
+            const user = await this.authRepo.createUser({
+                email: body.email,
+                name: body.name,
+                password: hashedPassword,
+                phoneNumber: body.phoneNumber,
+                roleId: clientRoleId
             })
-
             return user
         } catch (error) {
             if (isUniqueConstraintPrismaError(error)) {
