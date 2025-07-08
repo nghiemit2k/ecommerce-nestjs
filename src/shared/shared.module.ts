@@ -3,11 +3,13 @@ import { PrismaService } from "./services/prisma.service";
 import { HashingService } from "./services/hashing.service";
 import { SharedUserRepository } from "./repository/shared-user.repo";
 import { AuthRepoitory } from "src/routes/auth/auth.repo";
+import { EmailService } from "./services/email.service";
 
 const sharedServices = [
     PrismaService, HashingService,
     SharedUserRepository,
-    AuthRepoitory
+    AuthRepoitory,
+    EmailService
 ]
 @Module({
     imports: [],

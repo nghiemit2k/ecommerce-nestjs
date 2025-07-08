@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { RolesService } from "./roles.service";
 import { HashingService } from "src/shared/services/hashing.service";
 import { generateOTP, isUniqueConstraintPrismaError } from "src/shared/helpers";
@@ -9,11 +9,13 @@ import { addMilliseconds } from "date-fns";
 import ms from "ms";
 import envConfig from "src/shared/config";
 import { TypeOfVerification } from "src/shared/constants/auth.constant";
+import { EmailService } from "src/shared/services/email.service";
 
 @Injectable()
 export class AuthService {
     constructor(private readonly authRepo: AuthRepoitory, private readonly hashingService: HashingService,
-        private readonly rolesService: RolesService, private readonly sharedUserRepo: SharedUserRepository) { }
+        private readonly rolesService: RolesService, private readonly sharedUserRepo: SharedUserRepository,
+        private readonly emailService: EmailService) { }
 
     async register(body: RegisterBodyType) {
         try {
@@ -74,6 +76,17 @@ export class AuthService {
             type: body.type,
             expiresAt: addMilliseconds(new Date(), ms(envConfig.OTP_EXPIRES_IN))
         })
+        const { error, data } = await this.emailService.sendOTP({
+            email: body.email,
+            code
+        })
+        console.log({ data })
+        if (error) {
+            throw new UnprocessableEntityException({
+                message: 'Send OTP failed',
+                path: 'code',
+            });
+        }
         return verificationCode
     }
 }
