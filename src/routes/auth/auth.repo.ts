@@ -1,7 +1,8 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { UserType } from "src/shared/models/shared-user.model";
 import { PrismaService } from "src/shared/services/prisma.service";
-import { RegisterBodyType } from "./auth.model";
+import { RegisterBodyType, VerificationCodeType } from "./auth.model";
+import { TypeOfVerification, TypeOfVerificationType } from "src/shared/constants/auth.constant";
 
 @Injectable()
 export class AuthRepoitory {
@@ -19,5 +20,26 @@ export class AuthRepoitory {
         } catch (error) {
             throw new InternalServerErrorException(error)
         }
+    }
+    async createVerificationCode(payload: Pick<VerificationCodeType, 'email' | 'code' | 'type' | 'expiresAt'>): Promise<VerificationCodeType> {
+        return this.prisma.verificationCode.upsert({
+            where: {
+                email: payload.email,
+
+            },
+            create: payload,
+            update: {
+                code: payload.code,
+                expiresAt: payload.expiresAt
+            }
+
+        })
+    }
+
+    async findUniqueVerificationCode(uniqueValue: { email: string } | { id: number } |
+    { email: string, code: string, type: TypeOfVerificationType }): Promise<VerificationCodeType | null> {
+        return this.prisma.verificationCode.findUnique({
+            where: uniqueValue
+        })
     }
 }
