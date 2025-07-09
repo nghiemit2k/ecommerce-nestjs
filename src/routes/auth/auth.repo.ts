@@ -1,8 +1,8 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { UserType } from "src/shared/models/shared-user.model";
 import { PrismaService } from "src/shared/services/prisma.service";
-import { RegisterBodyType, VerificationCodeType } from "./auth.model";
-import { TypeOfVerification, TypeOfVerificationType } from "src/shared/constants/auth.constant";
+import { DeviceType, RegisterBodyType, VerificationCodeType } from "./auth.model";
+import { TypeOfVerificationType } from "src/shared/constants/auth.constant";
 
 @Injectable()
 export class AuthRepoitory {
@@ -21,6 +21,7 @@ export class AuthRepoitory {
             throw new InternalServerErrorException(error)
         }
     }
+
     async createVerificationCode(payload: Pick<VerificationCodeType, 'email' | 'code' | 'type' | 'expiresAt'>): Promise<VerificationCodeType> {
         return this.prisma.verificationCode.upsert({
             where: {
@@ -41,5 +42,36 @@ export class AuthRepoitory {
         return this.prisma.verificationCode.findUnique({
             where: uniqueValue
         })
+    }
+
+    createRefreshToken(data: {
+        token: string;
+        userId: number;
+        expiresAt: Date;
+        deviceId: number;
+    }) {
+        return this.prisma.refreshToken.create({
+            data,
+        });
+    }
+
+    createDevice(
+        data: Pick<DeviceType, 'userId' | 'userAgent' | 'ip'> &
+            Partial<Pick<DeviceType, 'lastActive' | 'isActive'>>,
+    ) {
+        return this.prisma.device.create({
+            data,
+        });
+    }
+
+    async findUniqueUserIncludeRole(
+        uniqueObject: { email: string } | { id: number },
+    ) {
+        return this.prisma.user.findUnique({
+            where: uniqueObject,
+            include: {
+                role: true,
+            },
+        });
     }
 }

@@ -1,3 +1,12 @@
+export const REQUEST_USER_KEY = 'user'
+
+export const AuthType = {
+    Bearer: 'Bearer',
+    None: 'None',
+    APIKey: 'ApiKey',
+} as const
+
+
 export const UserStatus = {
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
@@ -10,3 +19,4 @@ export const TypeOfVerification = {
 } as const
 
 export type TypeOfVerificationType = (typeof TypeOfVerification)[keyof typeof TypeOfVerification]
+

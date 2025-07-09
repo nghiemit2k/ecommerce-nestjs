@@ -2,7 +2,7 @@ import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { RolesService } from "./roles.service";
 import { HashingService } from "src/shared/services/hashing.service";
 import { generateOTP, isUniqueConstraintPrismaError } from "src/shared/helpers";
-import { RegisterBodyType, SendOtpBodyType } from "./auth.model";
+import { LoginBodyType, RegisterBodyType, SendOtpBodyType } from "./auth.model";
 import { AuthRepoitory } from "./auth.repo";
 import { SharedUserRepository } from "src/shared/repository/shared-user.repo";
 import { addMilliseconds } from "date-fns";
@@ -10,12 +10,14 @@ import ms from "ms";
 import envConfig from "src/shared/config";
 import { TypeOfVerification } from "src/shared/constants/auth.constant";
 import { EmailService } from "src/shared/services/email.service";
+import { AccessTokenPayloadCreate } from "src/shared/types/jwt.type";
+import { TokenService } from "src/shared/services/token.service";
 
 @Injectable()
 export class AuthService {
     constructor(private readonly authRepo: AuthRepoitory, private readonly hashingService: HashingService,
         private readonly rolesService: RolesService, private readonly sharedUserRepo: SharedUserRepository,
-        private readonly emailService: EmailService) { }
+        private readonly emailService: EmailService, private readonly tokenService: TokenService) { }
 
     async register(body: RegisterBodyType) {
         try {
@@ -88,5 +90,70 @@ export class AuthService {
             });
         }
         return verificationCode
+    }
+
+    async login(body: LoginBodyType & { userAgent: string; ip: string }) {
+        const user = await this.authRepo.findUniqueUserIncludeRole({
+            email: body.email,
+        });
+        if (!user) {
+            throw new UnprocessableEntityException([
+                {
+                    message: 'email not exist',
+                    path: 'email',
+                },
+            ]);
+        }
+        const isPasswordMatch = await this.hashingService.compare(
+            body.password,
+            user.password,
+        );
+        if (!isPasswordMatch) {
+            throw new UnprocessableEntityException([
+                {
+                    message: 'Password not correct',
+                    path: 'password',
+                },
+            ]);
+        }
+        const device = await this.authRepo.createDevice({
+            userId: user.id,
+            userAgent: body.userAgent,
+            ip: body.ip,
+        });
+        const token = await this.generateTokens({
+            userId: user.id,
+            deviceId: device.id,
+            roleId: user.roleId,
+            roleName: user.role.name,
+        });
+        return token;
+    }
+    async generateTokens({
+        userId,
+        deviceId,
+        roleId,
+        roleName,
+    }: AccessTokenPayloadCreate) {
+        const [accessToken, refreshToken] = await Promise.all([
+            this.tokenService.signAccessToken({
+                userId,
+                deviceId,
+                roleId,
+                roleName,
+            }),
+            this.tokenService.signRefreshToken({
+                userId,
+            }),
+        ]);
+        const decodedRefreshToken =
+            await this.tokenService.verifyRefreshToken(refreshToken);
+        await this.authRepo.createRefreshToken({
+            token: refreshToken,
+            userId,
+            expiresAt: new Date(decodedRefreshToken.exp * 1000),
+            deviceId,
+        });
+        return { accessToken, refreshToken };
     }
 }

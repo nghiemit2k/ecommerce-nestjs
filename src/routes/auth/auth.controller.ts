@@ -1,9 +1,9 @@
-import { Body, Controller, Post } from "@nestjs/common";
-
+import { Body, Controller, Ip, Post } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { RegisterResponseType, SendOtpResponseType } from "./auth.model";
 import { ZodSerializerDto } from "nestjs-zod";
-import { RegisterBodyDTO, RegisterResponseDTO, SendOtpBodyDTO } from "./auth.dto";
+import { LoginBodyDTO, RegisterBodyDTO, RegisterResponseDTO, SendOtpBodyDTO } from "./auth.dto";
+import { UserAgent } from "src/shared/decorators/user-agent.decorator";
+
 
 @Controller('auth')
 export class AuthController {
@@ -18,5 +18,14 @@ export class AuthController {
     @Post('send-otp')
     async sendOtp(@Body() body: SendOtpBodyDTO) {
         return this.authService.sendOtp(body)
+    }
+
+    @Post('login')
+    async Login(@Body() body: LoginBodyDTO, @UserAgent() userAgent: string, @Ip() ip: string) {
+        return this.authService.login({
+            ...body,
+            userAgent,
+            ip
+        });
     }
 }
