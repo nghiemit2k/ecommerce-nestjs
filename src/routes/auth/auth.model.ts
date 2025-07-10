@@ -84,7 +84,7 @@ export const RoleSchema = z.object({
     id: z.number(),
     name: z.string(),
     description: z.string(),
-    isActive: z.string(),
+    isActive: z.boolean(),
     createdById: z.number().nullable(),
     updatedById: z.number().nullable(),
     deletedAt: z.date().nullable(),
@@ -106,3 +106,4 @@ export type RefreshTokenResType = LoginResType
 export type DeviceType = z.infer<typeof DeviceSchema>;
 export type SendOtpResponseType = z.infer<typeof SendOtpResponseSchema>
 export type LoginBodyType = z.infer<typeof LoginBodySchema>
+export type RefreshTokenType = z.infer<typeof RefreshTokenSchema>

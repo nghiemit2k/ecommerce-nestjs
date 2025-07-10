@@ -1,8 +1,9 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { UserType } from "src/shared/models/shared-user.model";
 import { PrismaService } from "src/shared/services/prisma.service";
-import { DeviceType, RegisterBodyType, VerificationCodeType } from "./auth.model";
+import { DeviceType, RefreshTokenType, RegisterBodyType, RoleType, VerificationCodeType } from "./auth.model";
 import { TypeOfVerificationType } from "src/shared/constants/auth.constant";
+import { User } from "@prisma/client";
 
 @Injectable()
 export class AuthRepoitory {
@@ -72,6 +73,34 @@ export class AuthRepoitory {
             include: {
                 role: true,
             },
+        });
+    }
+
+    async findUniqueRefreshTokenIncludeUserRole(uniqueObject: { token: string }):
+        Promise<RefreshTokenType & { user: UserType & { role: RoleType } } | null> {
+        return this.prisma.refreshToken.findUnique({
+            where: uniqueObject,
+            include: {
+                user: {
+                    include: {
+                        role: true
+                    }
+                }
+
+            },
+        });
+    }
+
+    async updateDevice(deviceId: number, data: Partial<DeviceType>): Promise<DeviceType> {
+        return this.prisma.device.update({
+            where: { id: deviceId },
+            data,
+        });
+    }
+
+    async deleteRefreshToken(uniqueObject: { token: string }): Promise<RefreshTokenType> {
+        return this.prisma.refreshToken.delete({
+            where: uniqueObject,
         });
     }
 }

@@ -1,8 +1,8 @@
-import { Injectable, UnprocessableEntityException } from "@nestjs/common";
+import { HttpException, Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { RolesService } from "./roles.service";
 import { HashingService } from "src/shared/services/hashing.service";
-import { generateOTP, isUniqueConstraintPrismaError } from "src/shared/helpers";
-import { LoginBodyType, RegisterBodyType, SendOtpBodyType } from "./auth.model";
+import { generateOTP, isNotFoundPrismaError, isUniqueConstraintPrismaError } from "src/shared/helpers";
+import { LoginBodyType, RefreshTokenBodyType, RegisterBodyType, SendOtpBodyType } from "./auth.model";
 import { AuthRepoitory } from "./auth.repo";
 import { SharedUserRepository } from "src/shared/repository/shared-user.repo";
 import { addMilliseconds } from "date-fns";
@@ -12,6 +12,7 @@ import { TypeOfVerification } from "src/shared/constants/auth.constant";
 import { EmailService } from "src/shared/services/email.service";
 import { AccessTokenPayloadCreate } from "src/shared/types/jwt.type";
 import { TokenService } from "src/shared/services/token.service";
+import { HttpErrorByCode } from "@nestjs/common/utils/http-error-by-code.util";
 
 @Injectable()
 export class AuthService {
@@ -72,24 +73,24 @@ export class AuthService {
             }])
         }
         const code = generateOTP()
-        const verificationCode = await this.authRepo.createVerificationCode({
+        await this.authRepo.createVerificationCode({
             email: body.email,
             code,
             type: body.type,
             expiresAt: addMilliseconds(new Date(), ms(envConfig.OTP_EXPIRES_IN))
         })
-        const { error, data } = await this.emailService.sendOTP({
+        const { error } = await this.emailService.sendOTP({
             email: body.email,
             code
         })
-        console.log({ data })
+
         if (error) {
             throw new UnprocessableEntityException({
                 message: 'Send OTP failed',
                 path: 'code',
             });
         }
-        return verificationCode
+        return { message: 'OTP sent successfully' }
     }
 
     async login(body: LoginBodyType & { userAgent: string; ip: string }) {
@@ -155,5 +156,61 @@ export class AuthService {
             deviceId,
         });
         return { accessToken, refreshToken };
+    }
+
+    async refreshToken({ refreshToken, userAgent, ip }: RefreshTokenBodyType & { userAgent: string, ip: string }) {
+        try {
+            const { userId } = await this.tokenService.verifyRefreshToken(refreshToken)
+            const refreshTokenInDb = await this.authRepo.findUniqueRefreshTokenIncludeUserRole({
+                token: refreshToken
+            })
+            if (!refreshTokenInDb) {
+                throw new UnprocessableEntityException([{
+                    message: 'Invalid refresh token',
+                }])
+            }
+            const { deviceId, user: { roleId, name: roleName } } = refreshTokenInDb
+
+            const $updateDevice = this.authRepo.updateDevice(deviceId, {
+                ip,
+                userAgent
+            })
+
+            const $deleteRefreshToken = this.authRepo.deleteRefreshToken({
+                token: refreshToken
+            })
+
+            const $tokens = this.generateTokens({ userId, roleId, roleName, deviceId })
+
+            const [, , tokens] = await Promise.all([$updateDevice, $deleteRefreshToken, $tokens])
+
+            return tokens
+        } catch (error) {
+            if (error instanceof HttpException)
+                throw error
+        }
+        throw new UnprocessableEntityException()
+    }
+
+    async logout(refreshToken: string) {
+        try {
+            await this.tokenService.verifyRefreshToken(refreshToken)
+            const deleteRefreshToken = await this.authRepo.deleteRefreshToken({
+                token: refreshToken
+            })
+            await this.authRepo.updateDevice(deleteRefreshToken.deviceId, {
+                isActive: false
+            })
+            return {
+                message: 'Logout successfully'
+            }
+        } catch (error) {
+            if (isNotFoundPrismaError(error)) {
+                throw new UnprocessableEntityException([{
+                    message: 'Invalid refresh token',
+                }])
+            }
+            throw new UnprocessableEntityException()
+        }
     }
 }
