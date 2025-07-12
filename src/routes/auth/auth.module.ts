@@ -7,11 +7,12 @@ import { AuthRepoitory } from "./auth.repo";
 import { TokenService } from "src/shared/services/token.service";
 import { HashingService } from "src/shared/services/hashing.service";
 import { JwtService } from "@nestjs/jwt";
+import { GoogleService } from "./google.service";
 
 @Module({
     imports: [SharedModule],
     controllers: [AuthController],
-    providers: [AuthService, RolesService, AuthRepoitory, TokenService, HashingService, JwtService],
-    exports: [AuthService]
+    providers: [AuthService, RolesService, AuthRepoitory, TokenService, HashingService, JwtService, GoogleService],
+    exports: [AuthService, GoogleService]
 })
 export class AuthModule { } 

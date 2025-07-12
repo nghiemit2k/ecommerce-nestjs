@@ -49,7 +49,8 @@ export class AuthService {
                 name: body.name,
                 password: hashedPassword,
                 phoneNumber: body.phoneNumber,
-                roleId: clientRoleId
+                roleId: clientRoleId,
+
             })
             return user
         } catch (error) {

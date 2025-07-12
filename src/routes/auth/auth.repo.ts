@@ -9,7 +9,7 @@ import { User } from "@prisma/client";
 export class AuthRepoitory {
     constructor(private readonly prisma: PrismaService) { }
 
-    async createUser(user: Omit<RegisterBodyType, 'confirmPassword' | 'code'> & Pick<UserType, 'roleId'>): Promise<Omit<UserType, 'password' | 'totpSecret'>> {
+    async createUser(user: Pick<UserType, 'email' | 'name' | 'password' | 'phoneNumber' | 'roleId'>): Promise<Omit<UserType, 'password' | 'totpSecret'>> {
         try {
             return this.prisma.user.create({
                 data: user,
@@ -102,5 +102,16 @@ export class AuthRepoitory {
         return this.prisma.refreshToken.delete({
             where: uniqueObject,
         });
+    }
+
+    async createUserIncludeRole(user: Pick<UserType, 'email' | 'name' | 'password' | 'phoneNumber' | 'avatar' | 'roleId'>):
+        Promise<UserType & { role: RoleType }> {
+
+        return this.prisma.user.create({
+            data: user,
+            include: {
+                role: true
+            }
+        })
     }
 }
