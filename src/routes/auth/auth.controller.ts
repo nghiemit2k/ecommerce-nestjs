@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Ip, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { ZodSerializerDto } from "nestjs-zod";
-import { LoginBodyDTO, LoginResDTO, RefreshTokenResDTO, RefreshTokenBodyDTO, RegisterBodyDTO, RegisterResponseDTO, SendOtpBodyDTO, LogoutBodyDTO, GetAuthorizationUrlResDTO } from "./auth.dto";
+import { LoginBodyDTO, LoginResDTO, RefreshTokenResDTO, RefreshTokenBodyDTO, RegisterBodyDTO, RegisterResponseDTO, SendOtpBodyDTO, LogoutBodyDTO, GetAuthorizationUrlResDTO, ForgotPasswordBodyDTO } from "./auth.dto";
 import { UserAgent } from "src/shared/decorators/user-agent.decorator";
 import { MessageResDTO } from "src/shared/dtos/response.dto";
 import { isPublic } from "src/shared/decorators/auth.decorator";
@@ -77,5 +77,12 @@ export class AuthController {
             const message = error instanceof Error ? error.message : 'error when login with google, please try another ways'
             return res.redirect(`${envConfig.GOOGLE_CLIENT_REDIRECT_URI}?errorMessage=${message}`)
         }
+    }
+
+    @Post('forgot-password')
+    @isPublic()
+    @ZodSerializerDto(MessageResDTO)
+    forgotPassword(@Body() body: ForgotPasswordBodyDTO) {
+        return this.authService.forgotPassword(body)
     }
 }

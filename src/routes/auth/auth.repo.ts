@@ -32,6 +32,7 @@ export class AuthRepoitory {
             create: payload,
             update: {
                 code: payload.code,
+                type: payload.type,
                 expiresAt: payload.expiresAt
             }
 
@@ -112,6 +113,20 @@ export class AuthRepoitory {
             include: {
                 role: true
             }
+        })
+    }
+
+    updateUser(where: { id: number } | { email: string }, data: Partial<Omit<UserType, 'id'>>): Promise<UserType> {
+        return this.prisma.user.update({
+            where,
+            data
+        })
+    }
+
+    deleteVerificationCode(uniqueValue: { email: string } | { id: number } | { email: string, code: string, type: TypeOfVerificationType }):
+        Promise<VerificationCodeType> {
+        return this.prisma.verificationCode.delete({
+            where: uniqueValue
         })
     }
 }

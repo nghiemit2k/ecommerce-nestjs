@@ -2,17 +2,17 @@ import { HttpException, Injectable, UnprocessableEntityException } from "@nestjs
 import { RolesService } from "./roles.service";
 import { HashingService } from "src/shared/services/hashing.service";
 import { generateOTP, isNotFoundPrismaError, isUniqueConstraintPrismaError } from "src/shared/helpers";
-import { LoginBodyType, RefreshTokenBodyType, RegisterBodyType, SendOtpBodyType } from "./auth.model";
+import { ForgotPasswordBodyType, LoginBodyType, RefreshTokenBodyType, RegisterBodyType, SendOtpBodyType } from "./auth.model";
 import { AuthRepoitory } from "./auth.repo";
 import { SharedUserRepository } from "src/shared/repository/shared-user.repo";
 import { addMilliseconds } from "date-fns";
 import ms from "ms";
 import envConfig from "src/shared/config";
-import { TypeOfVerification } from "src/shared/constants/auth.constant";
+import { TypeOfVerification, TypeOfVerificationType } from "src/shared/constants/auth.constant";
 import { EmailService } from "src/shared/services/email.service";
 import { AccessTokenPayloadCreate } from "src/shared/types/jwt.type";
 import { TokenService } from "src/shared/services/token.service";
-import { HttpErrorByCode } from "@nestjs/common/utils/http-error-by-code.util";
+
 
 @Injectable()
 export class AuthService {
@@ -20,38 +20,51 @@ export class AuthService {
         private readonly rolesService: RolesService, private readonly sharedUserRepo: SharedUserRepository,
         private readonly emailService: EmailService, private readonly tokenService: TokenService) { }
 
+    async validateVerificationCode({ email, code, type }: { email: string, code: string, type: TypeOfVerificationType }) {
+        const verificationCode = await this.authRepo.findUniqueVerificationCode({
+            email,
+            code,
+            type
+        })
+        if (!verificationCode) {
+            throw new UnprocessableEntityException([{
+                message: 'Invalid verification code',
+                path: ['code']
+            }])
+        }
+        if (verificationCode.expiresAt < new Date()) {
+            throw new UnprocessableEntityException([{
+                message: 'Verification code expired',
+                path: ['code']
+            }])
+        }
+        console.log(verificationCode)
+        return verificationCode
+    }
     async register(body: RegisterBodyType) {
         try {
-            const verificationCode = await this.authRepo.findUniqueVerificationCode({
+            await this.validateVerificationCode({
                 email: body.email,
                 code: body.code,
                 type: TypeOfVerification.REGISTER
-
             })
-            console.log(verificationCode)
-            if (!verificationCode) {
-                console.log(verificationCode)
-                throw new UnprocessableEntityException([{
-                    message: 'Invalid verification code',
-                    path: ['code']
-                }])
-            }
-            if (verificationCode.expiresAt < new Date()) {
-                throw new UnprocessableEntityException([{
-                    message: 'Verification code expired',
-                    path: ['code']
-                }])
-            }
             const clientRoleId = await this.rolesService.getClientRoleId()
             const hashedPassword = await this.hashingService.hash(body.password)
-            const user = await this.authRepo.createUser({
-                email: body.email,
-                name: body.name,
-                password: hashedPassword,
-                phoneNumber: body.phoneNumber,
-                roleId: clientRoleId,
+            const [user] = await Promise.all([
+                this.authRepo.createUser({
+                    email: body.email,
+                    name: body.name,
+                    password: hashedPassword,
+                    phoneNumber: body.phoneNumber,
+                    roleId: clientRoleId,
 
-            })
+                }),
+                this.authRepo.deleteVerificationCode({
+                    email: body.email,
+                    code: body.code,
+                    type: TypeOfVerification.REGISTER
+                })
+            ])
             return user
         } catch (error) {
             if (isUniqueConstraintPrismaError(error)) {
@@ -66,20 +79,29 @@ export class AuthService {
     }
 
     async sendOtp(body: SendOtpBodyType) {
+        console.log(body)
         const user = await this.sharedUserRepo.findUnique({ email: body.email })
-        if (user) {
+        if (body.type === TypeOfVerification.REGISTER && user) {
             throw new UnprocessableEntityException([{
                 message: 'Email already exists',
                 path: ['email']
             }])
         }
+
+        if (body.type === TypeOfVerification.FORGOT_PASSWORD && !user) {
+            throw new UnprocessableEntityException([{
+                message: 'Email not found',
+                path: ['email']
+            }])
+        }
         const code = generateOTP()
-        await this.authRepo.createVerificationCode({
+        const result = await this.authRepo.createVerificationCode({
             email: body.email,
             code,
             type: body.type,
             expiresAt: addMilliseconds(new Date(), ms(envConfig.OTP_EXPIRES_IN))
         })
+        console.log(result)
         const { error } = await this.emailService.sendOTP({
             email: body.email,
             code
@@ -213,5 +235,39 @@ export class AuthService {
             }
             throw new UnprocessableEntityException()
         }
+    }
+
+    async forgotPassword(body: ForgotPasswordBodyType) {
+        const { email, code, newPassword } = body
+        const user = await this.sharedUserRepo.findUnique({
+            email
+        })
+        if (!user) {
+            throw new UnprocessableEntityException([{
+                message: 'Email not found',
+            }])
+        }
+        await this.validateVerificationCode({
+            email,
+            code,
+            type: TypeOfVerification.FORGOT_PASSWORD
+        })
+
+        const hashedPassword = await this.hashingService.hash(newPassword)
+
+        await Promise.all([
+            this.authRepo.updateUser({
+                id: user.id
+            }, {
+                password: hashedPassword
+            }),
+            this.authRepo.deleteVerificationCode({
+                email,
+                code,
+                type: TypeOfVerification.FORGOT_PASSWORD
+            })
+        ])
+
+        return { message: 'Password updated successfully' }
     }
 }

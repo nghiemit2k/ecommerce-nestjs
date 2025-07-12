@@ -100,6 +100,25 @@ export const GoogleAuthStateSchema = DeviceSchema.pick({
 export const GetAuthorizationUrlResSchema = z.object({
     url: z.string().url()
 })
+
+export const ForgotPasswordBodySchema = z.object({
+    email: z.string().email(),
+    code: z.string().min(6).max(6),
+    newPassword: z.string().min(6).max(100),
+    confirmNewPassword: z.string().min(6).max(100),
+}).strict().superRefine(({ newPassword, confirmNewPassword }, ctx) => {
+    if (newPassword !== confirmNewPassword) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Password and confirm password do not match',
+            path: ['confirmNewPassword']
+        })
+    }
+})
+
+
+
+
 export const LogoutBodySchema = RefreshTokenBodySchema
 
 export type LogoutBodyType = RefreshTokenBodyType
@@ -118,3 +137,4 @@ export type LoginBodyType = z.infer<typeof LoginBodySchema>
 export type RefreshTokenType = z.infer<typeof RefreshTokenSchema>
 export type GoogleAuthStateType = z.infer<typeof GoogleAuthStateSchema>
 export type GetAuthorizationUrlResType = z.infer<typeof GetAuthorizationUrlResSchema>
+export type ForgotPasswordBodyType = z.infer<typeof ForgotPasswordBodySchema>
